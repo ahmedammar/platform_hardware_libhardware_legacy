@@ -13,7 +13,7 @@ ifdef WIFI_FIRMWARE_LOADER
 LOCAL_CFLAGS += -DWIFI_FIRMWARE_LOADER=\"$(WIFI_FIRMWARE_LOADER)\"
 endif
 
-ifeq ($(BOARD_HAVE_WIFI), true)
+ifeq ($(BOARD_HAVE_WIFI_CSR), true)
   LOCAL_SRC_FILES += wifi/wifi_unifi.c
 else
   LOCAL_SRC_FILES += wifi/wifi.c
