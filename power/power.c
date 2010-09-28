@@ -35,6 +35,11 @@
 #include "power_qemu.h"
 #endif
 
+#ifdef CHECK_MX5X_HARDWARE
+#include "mxc_ipu_hl_lib.h"
+#define MAX_WAIT_HARDWARE_TIME (3000000) /*in us*/
+#endif
+
 enum {
     ACQUIRE_PARTIAL_WAKE_LOCK = 0,
     RELEASE_WAKE_LOCK,
@@ -159,6 +164,79 @@ set_last_user_activity_timeout(int64_t delay)
     }
 }
 
+#ifdef CHECK_MX5X_HARDWARE
+int is_safe_suspend()
+{
+    int i;
+	ipu_lib_ctl_task_t task;
+    for (i = 0; i < MAX_TASK_NUM; i++) {
+		task.index = i;
+		mxc_ipu_lib_task_control(IPU_CTL_TASK_QUERY, (void *)(&task), NULL);
+		if (task.task_pid) {
+			LOGI("task %d:", i);
+			LOGI("pid: %d", task.task_pid);
+			LOGI("mode:");
+			if (task.task_mode & IC_ENC)
+				LOGI("\t\tIC_ENC");
+			if (task.task_mode & IC_VF)
+				LOGI("\t\tIC_VF");
+			if (task.task_mode & IC_PP)
+				LOGI("\t\tIC_PP");
+			if (task.task_mode & ROT_ENC)
+				LOGI("\t\tROT_ENC");
+			if (task.task_mode & ROT_VF)
+				LOGI("\t\tROT_VF");
+			if (task.task_mode & ROT_PP)
+				LOGI("\t\tROT_PP");
+			if (task.task_mode & VDI_IC_VF)
+				LOGI("\t\tVDI_IC_VF");
+
+            /*Not safe too suspend*/
+            return 0;
+		}
+	}
+
+    return 1;
+}
+
+void *set_state_off_sync(void *arg)
+{
+    char buf[32];
+    int len;
+    int wait_time = 0;
+    LOGI("*****set_state_off_sync****");
+    do {
+        if (is_safe_suspend()) {
+            /*It is safe now*/
+            break;
+        } else{
+            LOGI("...Have to wait...");
+            usleep(100000);
+            wait_time += 100000;
+        }
+    } while (wait_time < MAX_WAIT_HARDWARE_TIME);
+
+    len = sprintf(buf, off_state);
+    LOGI("*****do change the sate****");
+    len = write(g_fds[REQUEST_STATE], buf, len);
+    return NULL;
+}
+#else
+int is_safe_suspend()
+{
+    return 1;
+}
+
+void *set_state_off_sync(void *arg)
+{
+    char buf[32];
+    int len;
+    len = sprintf(buf, off_state);
+    len = write(g_fds[REQUEST_STATE], buf, len);
+    return NULL;
+}
+#endif
+
 int
 set_screen_state(int on)
 {
@@ -175,15 +253,23 @@ set_screen_state(int on)
 
     char buf[32];
     int len;
-    if(on)
-        len = snprintf(buf, sizeof(buf), "%s", on_state);
-    else
-        len = snprintf(buf, sizeof(buf), "%s", off_state);
-
-    buf[sizeof(buf) - 1] = '\0';
-    len = write(g_fds[REQUEST_STATE], buf, len);
-    if(len < 0) {
-        LOGE("Failed setting last user activity: g_error=%d\n", g_error);
+    if (on) {
+        len = sprintf(buf, on_state);
+        len = write(g_fds[REQUEST_STATE], buf, len);
+        if (len < 0)
+            LOGE("Failed setting last user activity: g_error=%d\n", g_error);
+    } else{
+        /*Check it is safe to enter suspend*/
+        if (is_safe_suspend()) {
+            len = sprintf(buf, off_state);
+            len = write(g_fds[REQUEST_STATE], buf, len);
+            if (len < 0)
+                LOGE("Failed setting last user activity: g_error=%d\n", g_error);
+        } else{
+           pthread_t threadId;
+           pthread_create(&threadId, NULL, set_state_off_sync, NULL);
+        }
     }
+
     return 0;
 }

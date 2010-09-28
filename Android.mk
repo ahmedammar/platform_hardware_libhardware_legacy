@@ -8,6 +8,12 @@ include $(CLEAR_VARS)
 
 LOCAL_SHARED_LIBRARIES := libutils libbinder libcutils libwpa_client
 
+ifeq ($(BOARD_SOC_CLASS),IMX5X)
+ifeq ($(HAVE_FSL_IMX_IPU),true)
+LOCAL_SHARED_LIBRARIES += libipu
+endif
+endif
+
 LOCAL_INCLUDES += $(LOCAL_PATH)
 
 ifneq ($(TARGET_SIMULATOR),true)
@@ -36,7 +42,12 @@ include $(BUILD_SHARED_LIBRARY)
 include $(CLEAR_VARS)
 
 LOCAL_MODULE:= libpower
-
 LOCAL_SRC_FILES += power/power.c
+
+ifeq ($(BOARD_SOC_CLASS),IMX5X)
+ifeq ($(HAVE_FSL_IMX_IPU),true)
+LOCAL_C_INCLUDES += external/linux-lib/ipu
+endif
+endif
 
 include $(BUILD_STATIC_LIBRARY)
