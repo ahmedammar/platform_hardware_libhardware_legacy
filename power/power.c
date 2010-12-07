@@ -58,7 +58,11 @@ const char * const NEW_PATHS[] = {
     "/sys/power/wake_unlock",
     "/sys/power/state"
 };
-
+const char * const V4L_STREAM_STATUS[] = {
+	"/sys/class/video4linux/video16/fsl_v4l2_output_property",
+//	"/sys/class/video4linux/video0/fsl_v4l2_capture_property",
+	"/sys/class/video4linux/video0/fsl_v4l2_overlay_property"
+};
 const char * const AUTO_OFF_TIMEOUT_DEV = "/sys/android_power/auto_off_timeout";
 
 //XXX static pthread_once_t g_initialized = THREAD_ONCE_INIT;
@@ -168,7 +172,10 @@ set_last_user_activity_timeout(int64_t delay)
 int is_safe_suspend()
 {
     int i;
+	char buf[20];
+	int readinbytes;
 	ipu_lib_ctl_task_t task;
+
     for (i = 0; i < MAX_TASK_NUM; i++) {
 		task.index = i;
 		mxc_ipu_lib_task_control(IPU_CTL_TASK_QUERY, (void *)(&task), NULL);
@@ -195,6 +202,29 @@ int is_safe_suspend()
             return 0;
 		}
 	}
+
+	for (i = 0; i < 2; i++)
+	{
+		FILE *fp = fopen(V4L_STREAM_STATUS[i], "r");
+		if (fp != NULL)
+		{
+			memset(buf, 0, 20);
+			readinbytes = fread(buf, 1, 20, fp);
+			if (readinbytes <= 20)
+				buf[readinbytes] = '\0';
+			else
+				return 0;
+
+			LOGV("for the port %s, the stream state is %s", V4L_STREAM_STATUS[i], buf );
+			if (NULL == strstr(buf, "off"))
+			{
+				LOGD("@@the V4L output is still on@@");
+				return 0;
+			}
+			fclose(fp);
+		}
+	}
+
 
     return 1;
 }
