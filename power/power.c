@@ -72,6 +72,7 @@ static int g_error = 1;
 
 static const char *off_state = "mem";
 static const char *on_state = "on";
+static const char *eink_state = "standby";
 
 static int64_t systemTime()
 {
@@ -251,6 +252,30 @@ void *set_state_off_sync(void *arg)
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
 }
+
+void *set_state_eink_sync(void *arg)
+{
+    char buf[32];
+    int len;
+    int wait_time = 0;
+    LOGI("*****set_state_off_sync****");
+    do {
+        if (is_safe_suspend()) {
+            /*It is safe now*/
+            break;
+        } else{
+            LOGI("...Have to wait...");
+            usleep(100000);
+            wait_time += 100000;
+        }
+    } while (wait_time < MAX_WAIT_HARDWARE_TIME);
+
+    len = sprintf(buf, eink_state);
+    LOGI("*****do change the sate****");
+    len = write(g_fds[REQUEST_STATE], buf, len);
+    return NULL;
+}
+
 #else
 int is_safe_suspend()
 {
@@ -262,6 +287,15 @@ void *set_state_off_sync(void *arg)
     char buf[32];
     int len;
     len = sprintf(buf, off_state);
+    len = write(g_fds[REQUEST_STATE], buf, len);
+    return NULL;
+}
+
+void *set_state_eink_sync(void *arg)
+{
+    char buf[32];
+    int len;
+    len = sprintf(buf, eink_state);
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
 }
@@ -283,12 +317,12 @@ set_screen_state(int on)
 
     char buf[32];
     int len;
-    if (on) {
+    if (on == 1) {
         len = sprintf(buf, on_state);
         len = write(g_fds[REQUEST_STATE], buf, len);
         if (len < 0)
             LOGE("Failed setting last user activity: g_error=%d\n", g_error);
-    } else{
+    } else if(on == 0){
         /*Check it is safe to enter suspend*/
         if (is_safe_suspend()) {
             len = sprintf(buf, off_state);
@@ -298,6 +332,17 @@ set_screen_state(int on)
         } else{
            pthread_t threadId;
            pthread_create(&threadId, NULL, set_state_off_sync, NULL);
+        }
+    }else if(on == 2){
+        /*Check it is safe to enter suspend*/
+        if (is_safe_suspend()) {
+            len = sprintf(buf, eink_state);
+            len = write(g_fds[REQUEST_STATE], buf, len);
+            if (len < 0)
+                LOGE("Failed setting last user activity: g_error=%d\n", g_error);
+        } else{
+           pthread_t threadId;
+           pthread_create(&threadId, NULL, set_state_eink_sync, NULL);
         }
     }
 
