@@ -247,7 +247,7 @@ void *set_state_off_sync(void *arg)
         }
     } while (wait_time < MAX_WAIT_HARDWARE_TIME);
 
-    len = strcpy(buf, off_state);
+    len = sprintf(buf, "%s", off_state);
     LOGI("*****do change the sate****");
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
@@ -270,7 +270,7 @@ void *set_state_eink_sync(void *arg)
         }
     } while (wait_time < MAX_WAIT_HARDWARE_TIME);
 
-    len = strcpy(buf, eink_state);
+    len = sprintf(buf, "%s", eink_state);
     LOGI("*****do change the sate****");
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
@@ -286,7 +286,7 @@ void *set_state_off_sync(void *arg)
 {
     char buf[32];
     int len;
-    len = strcpy(buf, off_state);
+    len = sprintf(buf, "%s", off_state);
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
 }
@@ -295,7 +295,7 @@ void *set_state_eink_sync(void *arg)
 {
     char buf[32];
     int len;
-    len = strcpy(buf, eink_state);
+    len = sprintf(buf, "%s", eink_state);
     len = write(g_fds[REQUEST_STATE], buf, len);
     return NULL;
 }
@@ -318,14 +318,14 @@ set_screen_state(int on)
     char buf[32];
     int len;
     if (on == 1) {
-        len = strcpy(buf, on_state);
+        len = sprintf(buf, "%s", on_state);
         len = write(g_fds[REQUEST_STATE], buf, len);
         if (len < 0)
             LOGE("Failed setting last user activity: g_error=%d\n", g_error);
     } else if(on == 0){
         /*Check it is safe to enter suspend*/
         if (is_safe_suspend()) {
-            len = strcpy(buf, off_state);
+            len = sprintf(buf, "%s", off_state);
             len = write(g_fds[REQUEST_STATE], buf, len);
             if (len < 0)
                 LOGE("Failed setting last user activity: g_error=%d\n", g_error);
@@ -336,7 +336,7 @@ set_screen_state(int on)
     }else if(on == 2){
         /*Check it is safe to enter suspend*/
         if (is_safe_suspend()) {
-            len = strcpy(buf, eink_state);
+            len = sprintf(buf, "%s", eink_state);
             len = write(g_fds[REQUEST_STATE], buf, len);
             if (len < 0)
                 LOGE("Failed setting last user activity: g_error=%d\n", g_error);
