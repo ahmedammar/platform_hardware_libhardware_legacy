@@ -58,11 +58,16 @@ const char * const NEW_PATHS[] = {
     "/sys/power/wake_unlock",
     "/sys/power/state"
 };
+
 const char * const V4L_STREAM_STATUS[] = {
 	"/sys/class/video4linux/video16/fsl_v4l2_output_property",
 //	"/sys/class/video4linux/video0/fsl_v4l2_capture_property",
 	"/sys/class/video4linux/video0/fsl_v4l2_overlay_property"
 };
+
+const char * const DVFS_CORE_EN_PATH = "/sys/devices/platform/mxc_dvfs_core.0/enable";
+const char * const BUSFREQ_EN_PATH = "/sys/devices/platform/busfreq.0/enable";
+
 const char * const AUTO_OFF_TIMEOUT_DEV = "/sys/android_power/auto_off_timeout";
 
 //XXX static pthread_once_t g_initialized = THREAD_ONCE_INIT;
@@ -347,4 +352,34 @@ set_screen_state(int on)
     }
 
     return 0;
+}
+
+void
+enable_dvfs_core(int on)
+{
+    int fd, len, i;
+    char buf[2];
+
+    len = sprintf(buf, "%s", on? "1":"0");
+
+    /* enable dvfs core */
+    fd = open(DVFS_CORE_EN_PATH, O_RDWR);
+    if (fd <= 0) {
+        LOGE("Failed to open file: %s\n", DVFS_CORE_EN_PATH);
+        return;
+    }
+    write(fd, buf, len);
+    close(fd);
+    LOGD("DVFS core has been %s!\n", on? "enabled":"disabled");
+
+    /* enable bus freq */
+    fd = open(BUSFREQ_EN_PATH, O_RDWR);
+    if (fd <= 0) {
+        LOGE("Failed to open file: %s\n", BUSFREQ_EN_PATH);
+        return;
+    }
+    write(fd, buf, len);
+    close(fd);
+    LOGD("Bus Frequency has been %s!\n", on? "enabled":"disabled");
+
 }
