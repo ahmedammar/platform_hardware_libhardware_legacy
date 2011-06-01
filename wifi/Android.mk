@@ -14,9 +14,13 @@ LOCAL_CFLAGS += -DWIFI_FIRMWARE_LOADER=\"$(WIFI_FIRMWARE_LOADER)\"
 endif
 
 ifeq ($(BOARD_HAVE_WIFI_CSR), true)
-  LOCAL_SRC_FILES += wifi/wifi_unifi.c
+LOCAL_SRC_FILES += wifi/wifi_unifi.c
 else
-  LOCAL_SRC_FILES += wifi/wifi.c
+LOCAL_SRC_FILES += wifi/wifi.c
+endif
+
+ifdef BOARD_WLAN_ATHEROS_SDK
+LOCAL_CFLAGS += -DATHEROS_WIFI_SDK
 endif
 
 LOCAL_SHARED_LIBRARIES += libnetutils

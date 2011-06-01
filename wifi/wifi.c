@@ -14,10 +14,12 @@
  * limitations under the License.
  */
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
+#include <sys/ioctl.h>
 
 #include "hardware_legacy/wifi.h"
 #include "libwpa_client/wpa_ctrl.h"
@@ -48,6 +50,27 @@ static char iface[PROPERTY_VALUE_MAX];
 // TODO: use new ANDROID_SOCKET mechanism, once support for multiple
 // sockets is in
 
+#if ATHEROS_WIFI_SDK
+
+#ifndef WIFI_DRIVER_MODULE_PATH
+#define WIFI_SDIO_IF_DRIVER_MODULE_PATH         "" /* use wlan_tool to load module */
+#define WIFI_DRIVER_MODULE_PATH                 ""
+#endif
+#ifndef WIFI_DRIVER_MODULE_NAME
+#define WIFI_SDIO_IF_DRIVER_MODULE_NAME         ""
+#define WIFI_DRIVER_MODULE_NAME                 "ar6000"
+#endif
+#ifndef WIFI_DRIVER_MODULE_ARG
+#define WIFI_DRIVER_MODULE_ARG          ""
+#endif
+#ifndef WIFI_FIRMWARE_LOADER
+#define WIFI_FIRMWARE_LOADER		        "wlan_tool"
+#endif
+#define WIFI_TEST_INTERFACE		        "sta"
+#define WIFI_DEF_IFNAME                         "wlan0"
+
+#else /* ATHENV */
+
 #ifndef WIFI_DRIVER_MODULE_PATH
 #define WIFI_DRIVER_MODULE_PATH         "/system/lib/modules/wlan.ko"
 #endif
@@ -62,9 +85,16 @@ static char iface[PROPERTY_VALUE_MAX];
 #endif
 #define WIFI_TEST_INTERFACE		"sta"
 
-#define WIFI_DRIVER_LOADER_DELAY	5000000
+#endif
 
+#define WIFI_DRIVER_LOADER_DELAY	1000000
+
+#ifdef ATHEROS_WIFI_SDK
+static const char IFACE_DIR[]           = "/data/misc/wifi/wpa_supplicant";
+#else  /* #ifdef ATHEROS_WIFI_SDK */
 static const char IFACE_DIR[]           = "/data/system/wpa_supplicant";
+#endif
+
 static const char DRIVER_MODULE_NAME[]  = WIFI_DRIVER_MODULE_NAME;
 static const char DRIVER_MODULE_TAG[]   = WIFI_DRIVER_MODULE_NAME " ";
 static const char DRIVER_MODULE_PATH[]  = WIFI_DRIVER_MODULE_PATH;
@@ -76,13 +106,13 @@ static const char SUPP_PROP_NAME[]      = "init.svc.wpa_supplicant";
 static const char SUPP_CONFIG_TEMPLATE[]= "/system/etc/wifi/wpa_supplicant.conf";
 static const char SUPP_CONFIG_FILE[]    = "/data/misc/wifi/wpa_supplicant.conf";
 static const char MODULE_FILE[]         = "/proc/modules";
+static const char MAC_FILE[]            = "/data/misc/wifi/softmac";
 
 static int insmod(const char *filename, const char *args)
 {
     void *module;
     unsigned int size;
     int ret;
-
     module = load_file(filename, &size);
     if (!module)
         return -1;
@@ -106,7 +136,6 @@ static int rmmod(const char *modname)
         else
             break;
     }
-
     if (ret != 0)
         LOGD("Unable to unload driver module \"%s\": %s\n",
              modname, strerror(errno));
@@ -166,6 +195,40 @@ static int check_driver_loaded() {
     return 0;
 }
 
+/* for Atheros HotSpot */
+int wifi_load_ap_driver()
+{
+    char driver_status[PROPERTY_VALUE_MAX];
+    int count = 100; /* wait at most 20 seconds for completion */
+
+    if (check_driver_loaded()) {
+        return 0;
+    }
+
+    if (strcmp(FIRMWARE_LOADER,"") == 0) {
+        usleep(WIFI_DRIVER_LOADER_DELAY);
+        property_set(DRIVER_PROP_NAME, "ok");
+    }
+    else {
+        property_set("ctl.start", WIFI_FIRMWARE_LOADER ":load_ap");
+    }
+    sched_yield();
+    while (count-- > 0) {
+        if (property_get(DRIVER_PROP_NAME, driver_status, NULL)) {
+            if (strcmp(driver_status, "ok") == 0)
+                return 0;
+            else if (strcmp(DRIVER_PROP_NAME, "failed") == 0) {
+                wifi_unload_driver();
+                return -1;
+            }
+        }
+        usleep(200000);
+    }
+    property_set(DRIVER_PROP_NAME, "timeout");
+    wifi_unload_driver();
+    return -1;
+}
+
 int wifi_load_driver()
 {
     char driver_status[PROPERTY_VALUE_MAX];
@@ -175,15 +238,20 @@ int wifi_load_driver()
         return 0;
     }
 
+#ifndef ATHEROS_WIFI_SDK  /* NOT atheros SDK */
     if (insmod(DRIVER_MODULE_PATH, DRIVER_MODULE_ARG) < 0)
         return -1;
+#endif
 
     if (strcmp(FIRMWARE_LOADER,"") == 0) {
         usleep(WIFI_DRIVER_LOADER_DELAY);
         property_set(DRIVER_PROP_NAME, "ok");
-    }
-    else {
+    } else {
+#ifdef ATHEROS_WIFI_SDK
+        property_set("ctl.start", WIFI_FIRMWARE_LOADER ":load");
+#else
         property_set("ctl.start", FIRMWARE_LOADER);
+#endif
     }
     sched_yield();
     while (count-- > 0) {
@@ -205,8 +273,11 @@ int wifi_load_driver()
 int wifi_unload_driver()
 {
     int count = 20; /* wait at most 10 seconds for completion */
-
+#ifdef ATHEROS_WIFI_SDK
+ if (property_set("ctl.start", WIFI_FIRMWARE_LOADER ":unload") == 0) {
+#else
     if (rmmod(DRIVER_MODULE_NAME) == 0) {
+#endif
 	while (count-- > 0) {
 	    if (!check_driver_loaded())
 		break;
@@ -370,13 +441,32 @@ int wifi_connect_to_supplicant()
         return -1;
     }
 
+#if ATHEROS_WIFI_SDK
+    property_get("wifi.interface", iface, WIFI_DEF_IFNAME);
+#else
     property_get("wifi.interface", iface, WIFI_TEST_INTERFACE);
+#endif
 
-    if (access(IFACE_DIR, F_OK) == 0) {
-        snprintf(ifname, sizeof(ifname), "%s/%s", IFACE_DIR, iface);
-    } else {
-        strlcpy(ifname, iface, sizeof(ifname));
+
+    snprintf(ifname, sizeof(ifname), "%s/%s", IFACE_DIR, iface);
+    LOGE("ctrl ifname = %s\n", ifname);
+
+    { /* check iface file is ready */
+        int cnt = 160; /* 8 seconds (160*50)*/
+        sched_yield();
+        while ( access(ifname, F_OK|W_OK)!=0 && cnt-- > 0) {
+            usleep(50000);
+        }
+        if (access(ifname, F_OK|W_OK)==0) {
+            LOGE("ifname %s is ready to read/write cnt=%d\n", ifname, cnt);
+        } else {
+            LOGE("ifname %s is not ready, cnt=%d\n", ifname, cnt);
+        }
     }
+
+#if ATHEROS_WIFI_SDK
+    LOGE("wifi_connect_to_supplicant: ifname = %s\n", ifname);
+#endif
 
     ctrl_conn = wpa_ctrl_open(ifname);
     if (ctrl_conn == NULL) {

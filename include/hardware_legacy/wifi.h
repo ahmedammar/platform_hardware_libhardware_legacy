@@ -21,6 +21,8 @@
 extern "C" {
 #endif
 
+/* Atheros load ap driver api  */
+int wifi_load_ap_driver();
 /**
  * Load the Wi-Fi driver.
  *
