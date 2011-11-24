@@ -69,6 +69,16 @@ endif
 
 include $(BUILD_SHARED_LIBRARY)
 
+include $(CLEAR_VARS)
+
+LOCAL_MODULE := audio.primary.freescale
+LOCAL_MODULE_PATH := $(TARGET_OUT_SHARED_LIBRARIES)/hw
+LOCAL_SRC_FILES := audio_hw_hal.cpp
+LOCAL_SHARED_LIBRARIES := liblog libcutils libaudio libutils
+LOCAL_MODULE_TAGS := optional
+
+include $(BUILD_SHARED_LIBRARY)
+
 #ifeq ($(ENABLE_AUDIO_DUMP),true)
 #  LOCAL_SRC_FILES += AudioDumpInterface.cpp
 #  LOCAL_CFLAGS += -DENABLE_AUDIO_DUMP
