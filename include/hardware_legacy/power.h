@@ -39,6 +39,8 @@ int set_screen_state(int on);
 // set how long to stay awake after the last user activity in seconds
 int set_last_user_activity_timeout(int64_t delay);
 
+// true if you want the dvfs core on, false if you want it off
+void enable_dvfs_core(int on);
 
 #if __cplusplus
 } // extern "C"
