@@ -108,17 +108,18 @@ static int insmod(const char *filename, const char *args)
 
     module = load_file(filename, &size);
     if (!module)
-        return -1;
+        return 0;//-1;
 
     ret = init_module(module, size, args);
 
     free(module);
 
-    return ret;
+    return 0;//ret;
 }
 
 static int rmmod(const char *modname)
 {
+#if 0
     int ret = -1;
     int maxtry = 10;
 
@@ -134,6 +135,8 @@ static int rmmod(const char *modname)
         LOGD("Unable to unload driver module \"%s\": %s\n",
              modname, strerror(errno));
     return ret;
+#endif
+    return 0;
 }
 
 int do_dhcp_request(int *ipaddr, int *gateway, int *mask,
@@ -159,6 +162,7 @@ const char *get_dhcp_error_string() {
 }
 
 int is_wifi_driver_loaded() {
+    return 0;
     char driver_status[PROPERTY_VALUE_MAX];
 #ifdef WIFI_DRIVER_MODULE_PATH
     FILE *proc;
